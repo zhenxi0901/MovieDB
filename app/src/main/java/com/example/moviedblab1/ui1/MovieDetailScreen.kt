@@ -1,4 +1,5 @@
 package com.example.moviedblab1.ui1
+
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
@@ -7,17 +8,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.example.moviedblab1.data.Movie
-import com.example.moviedblab1.data.MovieDetail
+import androidx.lifecycle.viewmodel.compose.viewModel
+
 
 /*
 shows the selected movie’s details and demonstrates opening third-party apps through implicit intents
@@ -25,50 +28,92 @@ shows the selected movie’s details and demonstrates opening third-party apps t
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MovieDetailScreen(movie: Movie,detail: MovieDetail, onBack: () -> Unit , onGoToReviewsVideos: ()-> Unit)
+fun MovieDetailScreen(movieId: Int, onBack: () -> Unit , onGoToReviewsVideos: ()-> Unit, viewModel: MovieDetailViewModel = viewModel())
     {
         /* gets Android Context, needed for opening other apps with intents */
         val context = LocalContext.current
-        val imdbUrl = "https://www.imdb.com/title/${detail.imdbId}/"
+        val uiState = viewModel.uiState
+
+        LaunchedEffect(movieId) {
+            viewModel.loadMovie(movieId)
+        }
+
+        val movie = uiState.movie
+        val detail = uiState.detail
+        val imdbUrl = detail?.imdbId?.takeIf { it.isNotBlank() }?.let {
+            "https://www.imdb.com/title/$it/"
+        }
 
         Scaffold(
             topBar = {
-                TopAppBar(title = {Text(movie.title)})
+                TopAppBar(
+                    title = { Text(movie?.title ?: "Movie Detail") }
+                )
             }
-        ) {
-            innerPadding->
+        ) { innerPadding ->
             Column(
-                modifier = Modifier.fillMaxSize().padding(innerPadding).padding(16.dp)
-            ){
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (uiState.isLoading) {
+                    CircularProgressIndicator()
+                }
+
                 Text(
-                    text = movie.title,
+                    text = movie?.title ?: "Unknown title",
                     style = MaterialTheme.typography.headlineSmall
                 )
 
                 Text(
-                    text = movie.overview,
+                    text = movie?.overview ?: "No overview available.",
                     style = MaterialTheme.typography.bodyLarge
                 )
 
-                GenreSection(genres = detail.genres)
-                HomepageSection(
-                    homepage = detail.homepage,
-                    onOpenHomepage = {
-                        if (detail.homepage.isNotBlank()) {
-                            /* open the homepage URL in another app, usually browser */
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(detail.homepage))
-                            context.startActivity(intent)
-                        }
-                    }
+                Text(
+                    text = "Genres: ${detail?.genres?.joinToString(", ") ?: "No cached detail yet"}",
+                    style = MaterialTheme.typography.bodyLarge
                 )
+
+                Text(
+                    text = if (uiState.isConnected) "Internet: Connected" else "Internet: Offline",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Button(
+                    onClick = { viewModel.toggleFavorite() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        if (movie?.isFavorite == true) "Remove Favorite" else "Add Favorite"
+                    )
+                }
+
                 Button(
                     onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(imdbUrl))
-                        context.startActivity(intent)
+                        val homepage = detail?.homepage.orEmpty()
+                        if (homepage.isNotBlank()) {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(homepage))
+                            context.startActivity(intent)
+                        }
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Open in IMDb App")
+                    Text("Open Movie Homepage")
+                }
+
+                Button(
+                    onClick = {
+                        if (!imdbUrl.isNullOrBlank()) {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(imdbUrl))
+                            context.startActivity(intent)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Open IMDb")
                 }
 
                 Button(
@@ -87,41 +132,3 @@ fun MovieDetailScreen(movie: Movie,detail: MovieDetail, onBack: () -> Unit , onG
             }
         }
     }
-
-@Composable
-fun GenreSection(genres: List<String>) {
-    Column {
-        Text(
-            text = "Genres",
-            style = MaterialTheme.typography.titleMedium
-        )
-        Text(
-            text = genres.joinToString(", "),
-            style = MaterialTheme.typography.bodyLarge
-        )
-    }
-}
-
-@Composable
-fun HomepageSection(
-    homepage: String,
-    onOpenHomepage: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = "Homepage",
-            style = MaterialTheme.typography.titleMedium
-        )
-
-        if (homepage.isNotBlank()) {
-            Button(
-                onClick = onOpenHomepage,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Open Movie Homepage")
-            }
-        } else {
-            Text("No homepage available")
-        }
-    }
-}

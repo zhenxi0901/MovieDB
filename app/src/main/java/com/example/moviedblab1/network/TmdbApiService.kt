@@ -1,5 +1,7 @@
 package com.example.moviedblab1.network
 
+import com.example.moviedblab1.data.MovieListResponse
+import com.example.moviedblab1.data.NetworkMovieDetail
 import com.example.moviedblab1.data.ReviewResponse
 import com.example.moviedblab1.data.VideoResponse
 import okhttp3.OkHttpClient
@@ -39,6 +41,27 @@ interface TmdbApiService {
         @Query("api_key") apiKey: String = BuildConfig.TMDB_API_KEY,
         @Query("language") language: String = "en-US"
     ): VideoResponse
+
+    @GET("movie/popular")
+    suspend fun getPopularMovies(
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String = "en-US",
+        @Query("page") page: Int = 1
+    ): MovieListResponse
+
+    @GET("movie/top_rated")
+    suspend fun getTopRatedMovies(
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String = "en-US",
+        @Query("page") page: Int = 1
+    ): MovieListResponse
+
+    @GET("movie/{movie_id}")
+    suspend fun getMovieDetails(
+        @Path("movie_id") movieId: Int,
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String = "en-US"
+    ): NetworkMovieDetail
 }
 
 /* Retrofit instance */

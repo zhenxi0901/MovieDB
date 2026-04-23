@@ -1,75 +1,199 @@
 package com.example.moviedblab1.data
 
-object MovieRepository {
+import android.content.Context
+import com.example.moviedblab1.BuildConfig
+import com.example.moviedblab1.data.local.AppStateDao
+import com.example.moviedblab1.data.local.AppStateEntity
+import com.example.moviedblab1.data.local.CachedViewType
+import com.example.moviedblab1.data.local.DatabaseProvider
+import com.example.moviedblab1.data.local.MovieDao
+import com.example.moviedblab1.data.local.MovieDetailDao
+import com.example.moviedblab1.data.local.MovieDetailEntity
+import com.example.moviedblab1.data.local.MovieEntity
+import com.example.moviedblab1.network.TmdbApi
+import com.google.gson.Gson
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
-    val movies= listOf(
-        Movie(
-            id = 550,
-            title = "Fight Club",
-            posterUrl = "https://image.tmdb.org/t/p/w500/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg",
-            overview = "A ticking-time-bomb insomniac and a slippery soap salesman form an underground fight club."
-        ),
-        Movie(
-            id = 680,
-            title = "Pulp Fiction",
-            posterUrl = "https://image.tmdb.org/t/p/w500/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg",
-            overview = "The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales."
-        ),
-        Movie(
-            id = 13,
-            title = "Forrest Gump",
-            posterUrl = "https://image.tmdb.org/t/p/w500/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg",
-            overview = "A man with a low IQ has accomplished great things in his life."
-        ),
-        Movie(
-            id = 27205,
-            title = "Inception",
-            posterUrl = "https://image.tmdb.org/t/p/w500/8IB2e4r4oVhHnANbnm7O3Tj6tF8.jpg",
-            overview = "A thief who steals corporate secrets through dream-sharing technology."
-        ),
-        Movie(
-            id = 155,
-            title = "The Dark Knight",
-            posterUrl = "https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
-            overview = "Batman faces the Joker, a criminal mastermind who wants to plunge Gotham into chaos."
+class MovieRepository(
+    private val movieDao: MovieDao,
+    private val detailDao: MovieDetailDao,
+    private val appStateDao: AppStateDao
+
+){
+
+    private val gson = Gson()
+
+    /* reads current selected list type from Room */
+    fun observeSelectedViewType(): Flow<CachedViewType> {
+        return appStateDao.observeAppState().map { state ->
+            state?.selectedViewType?.let {
+                runCatching { CachedViewType.valueOf(it) }.getOrDefault(CachedViewType.POPULAR)
+            } ?: CachedViewType.POPULAR
+        }
+    }
+
+    suspend fun getSelectedViewTypeOnce(): CachedViewType {
+        val stored = appStateDao.getSelectedViewTypeOnce()
+        return stored?.let {
+            runCatching { CachedViewType.valueOf(it) }.getOrDefault(CachedViewType.POPULAR)
+        } ?: CachedViewType.POPULAR
+    }
+
+    /* stores selected type in Room */
+    suspend fun setSelectedViewType(viewType: CachedViewType) {
+        appStateDao.upsertAppState(
+            AppStateEntity(
+                id = 0,
+                selectedViewType = viewType.name
+            )
         )
-    )
+    }
+    /* returns the movie list from Room as UI models */
+    fun observeMoviesFor(viewType: CachedViewType): Flow<List<Movie>> {
+        return when (viewType) {
+            CachedViewType.FAVORITES -> movieDao.observeFavoriteMovies()
+            CachedViewType.POPULAR,
+            CachedViewType.TOP_RATED -> movieDao.observeMoviesByViewType(viewType.name)
+        }.map { entities ->
+            entities.map { entity ->
+                Movie(
+                    id = entity.id,
+                    title = entity.title,
+                    posterUrl = entity.posterUrl,
+                    overview = entity.overview,
+                    isFavorite = entity.isFavorite
+                )
+            }
+        }
+    }
+    /* returns one movie as UI model */
+    fun observeMovie(movieId: Int): Flow<Movie?> {
+        return movieDao.observeMovieById(movieId).map { entity ->
+            entity?.let {
+                Movie(
+                    id = it.id,
+                    title = it.title,
+                    posterUrl = it.posterUrl,
+                    overview = it.overview,
+                    isFavorite = it.isFavorite
+                )
+            }
+        }
+    }
 
-    val movieDetails = listOf(
-        MovieDetail(
-            movieId = 550,
-            genres = listOf("Drama"),
-            homepage = "http://www.foxmovies.com/movies/fight-club" ,
-            imdbId = "tt0137523"
-        ),
-        MovieDetail(
-            movieId = 680,
-            genres = listOf("Thriller", "Crime"),
-            homepage = "",
-            imdbId = "tt0110912"
-        ),
-        MovieDetail(
-            movieId = 13,
-            genres = listOf("Comedy", "Drama", "Romance"),
-            homepage = "https://www.paramount.com/movies/forrest-gump",
-            imdbId = "tt0109830"
-        ),
-        MovieDetail(
-            movieId = 27205,
-            genres = listOf("Action", "Science Fiction", "Adventure"),
-            homepage = "https://www.warnerbros.com/movies/inception",
-            imdbId = "tt1375666"
-        ),
-        MovieDetail(
-            movieId = 155,
-            genres = listOf("Drama", "Action", "Crime", "Thriller"),
-            homepage = "https://www.warnerbros.com/movies/dark-knight",
-            imdbId = "tt0468569"
+    /* returns detail as UI model */
+    fun observeMovieDetail(movieId: Int): Flow<MovieDetail?> {
+        return detailDao.observeMovieDetail(movieId).map { entity ->
+            entity?.let {
+                MovieDetail(
+                    movieId = it.movieId,
+                    genres = gson.fromJson(it.genresJson, Array<String>::class.java).toList(),
+                    homepage = it.homepage,
+                    imdbId = it.imdbId
+                )
+            }
+        }
+    }
+
+    suspend fun refreshList(viewType: CachedViewType) {
+        when (viewType) {
+            CachedViewType.FAVORITES -> {
+                setSelectedViewType(CachedViewType.FAVORITES)
+            }
+
+            CachedViewType.POPULAR,
+            CachedViewType.TOP_RATED -> {
+                setSelectedViewType(viewType)
+
+                /* get current favourite Ids*/
+                val favoriteIds = movieDao.getFavoriteMovieIds().toSet()
+
+                movieDao.clearCurrentCachedList()
+
+                val networkMovies = when (viewType) {
+                    CachedViewType.POPULAR -> {
+                        TmdbApi.retrofitService.getPopularMovies(
+                            apiKey = BuildConfig.TMDB_API_KEY
+                        ).results
+                    }
+
+                    CachedViewType.TOP_RATED -> {
+                        TmdbApi.retrofitService.getTopRatedMovies(
+                            apiKey = BuildConfig.TMDB_API_KEY
+                        ).results
+                    }
+
+                    CachedViewType.FAVORITES -> emptyList()
+                }
+
+                /* convert network response into Room entities */
+                val entities = networkMovies.map { networkMovie ->
+                    MovieEntity(
+                        id = networkMovie.id,
+                        title = networkMovie.title,
+                        posterUrl = buildPosterUrl(networkMovie.posterPath),
+                        overview = networkMovie.overview,
+                        cachedViewType = viewType.name,
+                        isFavorite = favoriteIds.contains(networkMovie.id)
+                    )
+                }
+                /* insert / update into room */
+                movieDao.upsertMovies(entities)
+                movieDao.deleteNonFavoriteRowsWithoutCache()
+            }
+        }
+    }
+
+    /* reads selected type from Room and refreshes it */
+    suspend fun refreshCurrentSelectedList() {
+        val selected = getSelectedViewTypeOnce()
+        if (selected != CachedViewType.FAVORITES) {
+            refreshList(selected)
+        }
+    }
+
+    /* fetches detail from TMDb and stores it in Room */
+    suspend fun refreshMovieDetail(movieId: Int) {
+        val networkDetail = TmdbApi.retrofitService.getMovieDetails(
+            movieId = movieId,
+            apiKey = BuildConfig.TMDB_API_KEY
         )
-    )
 
-    /* it = current item in lambda */
-    fun getMovieById(id:Int): Movie? = movies.find {it.id == id}
+        val detailEntity = MovieDetailEntity(
+            movieId = networkDetail.id,
+            genresJson = gson.toJson(networkDetail.genres.map { it.name }),
+            homepage = networkDetail.homepage.orEmpty(),
+            imdbId = networkDetail.imdbId.orEmpty()
+        )
 
-    fun getMovieDetailByMovieId(id:Int): MovieDetail? = movieDetails.find {it.movieId == id}
+        detailDao.upsertMovieDetail(detailEntity)
+    }
+
+    /* changes favorite state in Room */
+    suspend fun toggleFavorite(movieId: Int) {
+        val current = movieDao.isFavorite(movieId) ?: false
+        movieDao.setFavorite(movieId, !current)
+    }
+
+    companion object {
+        fun from(context: Context): MovieRepository {
+            val db = DatabaseProvider.getDatabase(context)
+            return MovieRepository(
+                movieDao = db.movieDao(),
+                detailDao = db.movieDetailDao(),
+                appStateDao = db.appStateDao()
+            )
+        }
+
+        private fun buildPosterUrl(posterPath: String?): String {
+            return if (posterPath.isNullOrBlank()) {
+                ""
+            } else {
+                "https://image.tmdb.org/t/p/w500$posterPath"
+            }
+        }
+    }
 }
+
+
