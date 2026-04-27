@@ -1,26 +1,5 @@
 # MovieDB Lab 3 — Full Study Notes
-### Based on your actual code — corrections and expansions included
 
----
-
-## ⚠️ CORRECTIONS TO YOUR ORIGINAL NOTES
-
-Before reading everything, fix these mistakes first:
-
-| What you wrote | What is actually true |
-|---|---|
-| `object MovieRepository {}` — it is a singleton | **WRONG.** `MovieRepository` is a `class`, not an `object`. It uses a `companion object` inside it for the `from()` factory method. A new instance is created each time via `MovieRepository.from(context)`. |
-| `local.properties: TMDB_READ_TOKEN=...` | **WRONG key name.** The build.gradle.kts looks for `TMDB_API_KEY` with `findProperty("TMDB_API_KEY")`. Your local.properties should say `TMDB_API_KEY=your_key_here`. |
-| `MovieListUiState(isConnected = true)` (original code) | **Fixed to `false`.** Starting as `true` was a bug — the list never loaded on first launch. Now it starts `false` so the connectivity observer triggers a sync automatically. |
-| `MovieRepository.refreshList()` clears cache first, then fetches | **Fixed order.** Now fetches from network first. Only clears cache if the network call succeeds. Prevents data loss on network failure. |
-| Database `version = 1` | **Now version = 2** because `sortOrder` column was added to `MovieEntity`. |
-| `NetworkMovieDetail.homepage` and `imdbId` are nullable (`String?`) | **WRONG.** They are non-nullable `String` in the data class. The `.orEmpty()` calls in repository are just defensive. |
-| Notes do not mention `sortOrder` field | `MovieEntity` now has `val sortOrder: Int = 0`. It stores the position from the API response so the list keeps TMDB's ranking order instead of alphabetical. |
-| Notes do not mention `fallbackToDestructiveMigration()` | `DatabaseProvider` now calls `.fallbackToDestructiveMigration()` on the builder. This prevents crashes when the Room schema changes. |
-| Notes do not mention `BackoffPolicy.EXPONENTIAL` | `SyncScheduler` now sets exponential backoff — WorkManager waits 15 seconds before retrying, doubling each time. |
-| `MovieReviewsVideosViewModel` says it extends `AndroidViewModel` | **WRONG.** It extends plain `ViewModel()`. Only `MovieListViewModel` and `MovieDetailViewModel` extend `AndroidViewModel` because they need the `Application` context. |
-
----
 
 ## PART 1 — ANDROID CONCEPTS YOU MUST KNOW
 
