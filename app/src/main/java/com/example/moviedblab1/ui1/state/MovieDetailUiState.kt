@@ -6,6 +6,6 @@ import com.example.moviedblab1.data.MovieDetail
 data class MovieDetailUiState(
     val movie: Movie? = null,
     val detail: MovieDetail? = null,
-    val isConnected: Boolean = true,
+    val isConnected: Boolean = false,
     val isLoading: Boolean = false
 )

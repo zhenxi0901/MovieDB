@@ -13,7 +13,10 @@ object DatabaseProvider {
                 context.applicationContext,
                 MovieDbDatabase::class.java,
                 "movie_db"
-            ).build().also { INSTANCE = it }
+            )
+            .fallbackToDestructiveMigration()
+            .build()
+            .also { INSTANCE = it }
         }
     }
 }

@@ -6,6 +6,8 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.BackoffPolicy
+import java.util.concurrent.TimeUnit
 
 object SyncScheduler {
 
@@ -18,6 +20,11 @@ object SyncScheduler {
 
         val request = OneTimeWorkRequestBuilder<SyncSelectedMoviesWorker>()
             .setConstraints(constraints)
+            .setBackoffCriteria(           // wait 15s before retry, doubling each time
+                BackoffPolicy.EXPONENTIAL,
+                15,
+                TimeUnit.SECONDS
+            )
             .build()
 
         WorkManager.getInstance(context).enqueueUniqueWork(

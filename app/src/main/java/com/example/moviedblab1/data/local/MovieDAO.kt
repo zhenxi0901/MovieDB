@@ -8,9 +8,6 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface MovieDao {
 
-    @Query("SELECT * FROM movies WHERE cachedViewType = :viewType ORDER BY title")
-    fun observeMoviesByViewType(viewType: String): Flow<List<MovieEntity>>
-
     @Query("SELECT * FROM movies WHERE isFavorite = 1 ORDER BY title")
     fun observeFavoriteMovies(): Flow<List<MovieEntity>>
 
@@ -34,4 +31,8 @@ interface MovieDao {
 
     @Query("SELECT isFavorite FROM movies WHERE id = :movieId LIMIT 1")
     suspend fun isFavorite(movieId: Int): Boolean?
+
+    // was: ORDER BY title
+    @Query("SELECT * FROM movies WHERE cachedViewType = :viewType ORDER BY sortOrder ASC")
+    fun observeMoviesByViewType(viewType: String): Flow<List<MovieEntity>>
 }

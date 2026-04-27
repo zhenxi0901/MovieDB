@@ -10,5 +10,6 @@ data class MovieEntity(
     val posterUrl: String,
     val overview: String,
     val cachedViewType: String?,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val sortOrder: Int = 0
 )

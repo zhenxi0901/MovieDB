@@ -28,6 +28,9 @@ import androidx.compose.ui.unit.dp
 import com.example.moviedblab1.data.Movie
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.moviedblab1.data.local.CachedViewType
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.layout.height
 
 /* demonstrates vertical scrolling using LazyColumn.
 It displays the hardcoded movie list and allows navigation to the detail screen.
@@ -149,23 +152,36 @@ fun MovieListScreen(onMovieClick: (Int) -> Unit , onGoToGridScreen:()-> Unit,vie
                 .fillMaxWidth()
                 .clickable { onMovieClick(movie.id) }
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = movie.title,
-                    style = MaterialTheme.typography.titleLarge
-                )
+            Column(modifier = Modifier.padding(bottom = 16.dp)) {
+                // Poster image
+                if (movie.posterUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = movie.posterUrl,
+                        contentDescription = "Poster for ${movie.title}",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                    )
+                }
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = movie.title,
+                        style = MaterialTheme.typography.titleLarge
+                    )
 
-                Text(
-                    text = movie.overview,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+                    Text(
+                        text = movie.overview,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
 
-                Button(
-                    onClick = onToggleFavorite,
-                    modifier = Modifier.padding(top = 12.dp)
-                ) {
-                    Text(if (movie.isFavorite) "Remove Favorite" else "Add Favorite")
+                    Button(
+                        onClick = onToggleFavorite,
+                        modifier = Modifier.padding(top = 12.dp)
+                    ) {
+                        Text(if (movie.isFavorite) "Remove Favorite" else "Add Favorite")
+                    }
                 }
             }
         }

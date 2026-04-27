@@ -106,39 +106,32 @@ class MovieRepository(
             CachedViewType.TOP_RATED -> {
                 setSelectedViewType(viewType)
 
-                /* get current favourite Ids*/
-                val favoriteIds = movieDao.getFavoriteMovieIds().toSet()
-
-                movieDao.clearCurrentCachedList()
-
+                // fetch from network first , if this throws, stop here and the existing cache is untouched
                 val networkMovies = when (viewType) {
-                    CachedViewType.POPULAR -> {
-                        TmdbApi.retrofitService.getPopularMovies(
-                            apiKey = BuildConfig.TMDB_API_KEY
-                        ).results
-                    }
-
-                    CachedViewType.TOP_RATED -> {
-                        TmdbApi.retrofitService.getTopRatedMovies(
-                            apiKey = BuildConfig.TMDB_API_KEY
-                        ).results
-                    }
-
+                    CachedViewType.POPULAR ->
+                        TmdbApi.retrofitService.getPopularMovies(apiKey = BuildConfig.TMDB_API_KEY).results
+                    CachedViewType.TOP_RATED ->
+                        TmdbApi.retrofitService.getTopRatedMovies(apiKey = BuildConfig.TMDB_API_KEY).results
                     CachedViewType.FAVORITES -> emptyList()
                 }
 
-                /* convert network response into Room entities */
-                val entities = networkMovies.map { networkMovie ->
+                // only now that fresh data obtained, read favorites and clear cache
+                val favoriteIds = movieDao.getFavoriteMovieIds().toSet()
+                movieDao.clearCurrentCachedList()
+
+                // convert and upsert
+                val entities = networkMovies.mapIndexed { index, networkMovie ->
                     MovieEntity(
                         id = networkMovie.id,
                         title = networkMovie.title,
                         posterUrl = buildPosterUrl(networkMovie.posterPath),
                         overview = networkMovie.overview,
                         cachedViewType = viewType.name,
+                        sortOrder = index,
                         isFavorite = favoriteIds.contains(networkMovie.id)
                     )
                 }
-                /* insert / update into room */
+
                 movieDao.upsertMovies(entities)
                 movieDao.deleteNonFavoriteRowsWithoutCache()
             }

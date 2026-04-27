@@ -6,7 +6,7 @@ import com.example.moviedblab1.data.local.CachedViewType
 data class MovieListUiState(
     val selectedViewType: CachedViewType = CachedViewType.POPULAR,
     val movies: List<Movie> = emptyList(),
-    val isConnected: Boolean = true,
+    val isConnected: Boolean = false,
     val isLoading: Boolean = false,
     val showNoConnectionImage: Boolean = false
 )
